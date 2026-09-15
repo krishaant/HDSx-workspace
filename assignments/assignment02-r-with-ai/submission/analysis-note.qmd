@@ -1,0 +1,76 @@
+---
+title: "Assignment 2 Starter Analysis"
+author: "Krishaant Pathmanathan"
+format: html
+---
+
+## Setup
+
+```{r}
+#| message: false
+#| warning: false
+library(tidyverse) # AI-EDIT(2026-06-23): tidyverse-default — consolidated core library() calls into library(tidyverse)
+#task3 
+library(readr)
+library(dplyr)
+```
+
+## Load Data
+
+```{r}
+#task4
+nhanes <- read_csv("examples/nhanes-equity/data/nhanes_equity_v6.csv", show_col_types = FALSE)
+```
+
+## Inspect
+
+task5
+```{r}
+dim(nhanes) # no rows and columns
+names(nhanes) # col names 
+glimpse(nhanes) # preview data and data types 
+colSums(is.na(nhanes)) # number of missing values in each column
+```
+
+## Summarize
+
+Replace this example with your own summary if you choose a different question.
+
+task6
+```{r}
+bmi_summary <- nhanes |>
+  filter(!is.na(BMI), !is.na(IncomeGroup)) |>
+  group_by(IncomeGroup) |>
+  summarise(
+    n = n(),
+    mean_bmi = mean(BMI),
+    .groups = "drop"
+  )
+
+bmi_summary
+```
+
+## Function
+
+task7
+```{r}
+mean_with_n <- function(x) {
+  tibble(
+    n = sum(!is.na(x)),
+    mean = mean(x, na.rm = TRUE)
+  )
+}
+
+mean_with_n(nhanes$BMI)
+```
+
+## Save Output
+
+```{r}
+dir.create("assignments/assignment02-r-with-ai/submission/output", recursive = TRUE, showWarnings = FALSE)
+write_csv(bmi_summary, "assignments/assignment02-r-with-ai/submission/output/summary_table.csv")
+```
+
+## AI Audit Note
+
+Add comments explaining which parts were drafted or debugged with AI and how you verified the result.

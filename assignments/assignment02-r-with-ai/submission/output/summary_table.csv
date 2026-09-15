@@ -1,0 +1,4 @@
+IncomeGroup,n,mean_bmi
+High Income (>3.5),23838,25.92649718936153
+Low Income (<1.3),31395,25.050444019748337
+Middle Income,32414,25.959075399518724

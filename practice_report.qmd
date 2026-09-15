@@ -1,6 +1,6 @@
 ---
 title: "My First Report"
-author: "Your Name"
+author: "Krishaant Pathmanathan"
 format:
   html:
     embed-resources: true
@@ -38,6 +38,18 @@ hist(patients$age,
 
 - Add a sentence here describing what you notice in the chart.
 - Render again and check that both your sentence and the chart appear.
+
+## My notes 
+
+<mark>I have a **blue histogram**! I notice that the **age distribution is skewed to the right**, with most patients being younger than 50 years old. I have also **learnt how to render the qmd file as a html**.</mark>
+I wonder what the mean age of patiens is. 
+
+```{r}
+library(dplyr)
+mean_age <- patients %>%
+  summarise(mean_age = mean(age, na.rm = TRUE))
+mean_age
+```
 
 When you are happy with the result, **commit and sync** your work (the Week 2
 course page walks you through this), then submit your repository link on Canvas.

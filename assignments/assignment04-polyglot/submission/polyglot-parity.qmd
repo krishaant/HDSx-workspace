@@ -1,0 +1,211 @@
+---
+title: "Assignment 4: Polyglot Parity"
+author: "Krishaant Pathmanathan"
+format:
+  html:
+    embed-resources: true
+    toc: true
+---
+
+## How to reproduce this file
+
+1. Open `translation.ipynb` in this folder and run all cells. It saves
+   `output/python-summary.csv` and `output/python-counts.csv`.
+2. Render this file from the repository root:
+   `quarto render assignments/assignment04-polyglot/submission/polyglot-parity.qmd`
+3. Rendering builds the parity table from both languages and writes
+   `parity-table.csv` into this folder.
+
+All paths below are relative to the repository root, because `_quarto.yml`
+sets `execute-dir: project`.
+
+## Setup
+
+```{r}
+#| message: false
+#| warning: false
+library(tidyverse)
+```
+
+## Load and inspect
+
+```{r}
+nhanes <- read_csv("examples/nhanes-equity/data/nhanes_equity_v6.csv",
+                   show_col_types = FALSE)
+
+dim(nhanes)
+names(nhanes)
+colSums(is.na(nhanes[, c("BMI", "IncomeGroup", "Gender")]))
+```
+
+## Part A: R summary of BMI by income group and gender
+
+A descriptive, **unweighted** summary. Rows missing BMI, income group, or gender
+are removed, and the number removed is reported rather than dropped silently.
+
+```{r}
+analysis <- nhanes |>
+  filter(!is.na(BMI), !is.na(IncomeGroup), !is.na(Gender))
+
+tibble(
+  raw_rows      = nrow(nhanes),
+  filtered_rows = nrow(analysis),
+  dropped_rows  = nrow(nhanes) - nrow(analysis)
+)
+
+r_summary <- analysis |>
+  group_by(IncomeGroup, Gender) |>
+  summarise(
+    n        = n(),
+    mean_bmi = round(mean(BMI), 2),
+    sd_bmi   = round(sd(BMI), 2),
+    .groups  = "drop"
+  ) |>
+  arrange(IncomeGroup, Gender)
+
+r_summary
+```
+
+## Part B: The same logic as a reusable function
+
+The double curly braces ("curly-curly") around each argument let the function
+take bare column names, the same way `filter()` and `group_by()` do.
+
+```{r}
+summarise_mean_sd <- function(data, value, group1, group2, digits = 2) {
+  data |>
+    filter(!is.na({{ value }}), !is.na({{ group1 }}), !is.na({{ group2 }})) |>
+    group_by({{ group1 }}, {{ group2 }}) |>
+    summarise(
+      n          = n(),
+      mean_value = round(mean({{ value }}), digits),
+      sd_value   = round(sd({{ value }}), digits),
+      .groups    = "drop"
+    ) |>
+    arrange({{ group1 }}, {{ group2 }})
+}
+
+r_function_summary <- summarise_mean_sd(nhanes, BMI, IncomeGroup, Gender)
+r_function_summary
+
+# Check: the function must reproduce Part A exactly
+all.equal(
+  r_function_summary |> rename(mean_bmi = mean_value, sd_bmi = sd_value),
+  r_summary
+)
+```
+
+### Reusing the function
+
+**Swap the value column (Waist).** Same six income-by-gender groups, but fewer
+rows, because Waist has more missing values than BMI.
+
+```{r}
+waist_summary <- summarise_mean_sd(nhanes, Waist, IncomeGroup, Gender)
+waist_summary
+
+identical(select(waist_summary, IncomeGroup, Gender),
+          select(r_summary, IncomeGroup, Gender))
+sum(waist_summary$n) - sum(r_summary$n)
+```
+
+**Swap a grouping column (Race).** Five race categories times two genders gives
+ten grouped rows.
+
+```{r}
+race_summary <- summarise_mean_sd(nhanes, BMI, Race, Gender)
+nrow(race_summary)
+race_summary
+```
+
+## Part C: Parity check against Python
+
+The Python translation is in `translation.ipynb` and uses `helpers.py`.
+
+```{r}
+py_dir <- "assignments/assignment04-polyglot/submission/output"
+if (!file.exists(file.path(py_dir, "python-summary.csv"))) {
+  stop("Run translation.ipynb first: output/python-summary.csv is missing.")
+}
+
+py_summary <- read_csv(file.path(py_dir, "python-summary.csv"), show_col_types = FALSE)
+py_counts  <- read_csv(file.path(py_dir, "python-counts.csv"), show_col_types = FALSE)
+py_value   <- function(metric) py_counts$python_value[py_counts$metric == metric]
+```
+
+### Group-by-group comparison
+
+Rows are joined on the two grouping labels. `full_join()` keeps a group that
+appears in only one language, so a label mismatch would show up as `NA`.
+
+```{r}
+group_check <- full_join(
+  r_summary,
+  py_summary,
+  by = c("IncomeGroup", "Gender"),
+  suffix = c("_r", "_py")
+) |>
+  mutate(
+    n_match    = n_r == n_py,
+    mean_match = abs(mean_bmi_r - mean_bmi_py) < 1e-9,
+    sd_match   = abs(sd_bmi_r - sd_bmi_py) < 1e-9
+  )
+
+group_check |>
+  select(IncomeGroup, Gender, n_r, n_py, mean_bmi_r, mean_bmi_py,
+         sd_bmi_r, sd_bmi_py, n_match, mean_match, sd_match) |>
+  knitr::kable()
+```
+
+### Parity table
+
+```{r}
+labels_r  <- paste(r_summary$IncomeGroup, r_summary$Gender, sep = " / ")
+labels_py <- paste(py_summary$IncomeGroup, py_summary$Gender, sep = " / ")
+values_ok <- all(group_check$n_match, group_check$mean_match, group_check$sd_match)
+
+parity_table <- tibble(
+  metric = c("raw_row_count", "raw_column_count", "filtered_row_count",
+             "number_of_groups", "grouping_labels", "rounded_summary_values"),
+  r_value = c(nrow(nhanes), ncol(nhanes), nrow(analysis), nrow(r_summary),
+              paste(labels_r, collapse = "; "),
+              paste(sprintf("%d, %.2f, %.2f", r_summary$n, r_summary$mean_bmi, r_summary$sd_bmi),
+                    collapse = "; ")),
+  python_value = c(py_value("raw_row_count"), py_value("raw_column_count"),
+                   py_value("filtered_row_count"), nrow(py_summary),
+                   paste(labels_py, collapse = "; "),
+                   paste(sprintf("%d, %.2f, %.2f", py_summary$n, py_summary$mean_bmi, py_summary$sd_bmi),
+                         collapse = "; "))
+) |>
+  mutate(
+    match = r_value == python_value,
+    match = if_else(metric == "rounded_summary_values", match & values_ok, match),
+    notes = c(
+      "Same CSV read by readr::read_csv and pandas.read_csv",
+      "Same 18 variables",
+      "R filter(!is.na(...)) vs pandas dropna(subset=[...]) on BMI, IncomeGroup, Gender",
+      "group_by + summarise vs groupby + agg",
+      "Same labels in the same order (arrange vs sort_values)",
+      "n, mean, SD per group in label order (2 dp); also checked numerically in group_check; SD uses n - 1 in both"
+    )
+  ) |>
+  mutate(across(everything(), as.character))
+
+write_csv(parity_table, "assignments/assignment04-polyglot/submission/parity-table.csv")
+knitr::kable(parity_table)
+```
+
+## Parity discussion
+
+All `r sum(parity_table$match == "TRUE")` of `r nrow(parity_table)` parity checks
+match: both languages start from `r nrow(nhanes)` rows, keep
+`r nrow(analysis)` rows after removing missing BMI, income group, or gender, and
+return the same `r nrow(r_summary)` groups with identical counts, means, and SDs
+to two decimals. Two translation traps were checked rather than assumed: pandas
+`std()` and R `sd()` both divide by n - 1, and `pandas.read_csv` needed
+`low_memory = False` to stop it guessing mixed types for the sparse `Marital`
+column (which does not affect this summary).
+
+**Limitations.** These are unweighted sample statistics that include all ages,
+so they describe the NHANES sample, not the U.S. population, and they do not
+show that income causes any difference in BMI.

@@ -43,6 +43,22 @@ health data.
 5. Make the Assignment 1 edits, render again, then commit both
    `practice_report.qmd` and `practice_report.html` and sync your work.
 
+### Running locally instead of in a Codespace
+
+The Codespace is the course dependency baseline, but this workspace also
+renders locally if you have R, Quarto, and Python installed. Use the same
+render step as in the Codespace:
+
+```
+quarto render practice_report.qmd
+```
+
+Run everything from the repository root so relative paths such as
+`examples/nhanes-equity/data/nhanes_equity_v6.csv` and
+`assignments/assignment04-polyglot/submission/output/python-summary.csv`
+keep resolving correctly. Before a deadline, it is still worth opening a
+fresh Codespace once to confirm the project renders there too.
+
 ## Later assignments
 
 The `assignments/` folder contains student-only starters and blank submission

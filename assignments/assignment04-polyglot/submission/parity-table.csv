@@ -1,0 +1,7 @@
+metric,r_value,python_value,match,notes
+raw_row_count,105626,105626,TRUE,Same CSV read by readr::read_csv and pandas.read_csv
+raw_column_count,18,18,TRUE,Same 18 variables
+filtered_row_count,87647,87647,TRUE,"R filter(!is.na(...)) vs pandas dropna(subset=[...]) on BMI, IncomeGroup, Gender"
+number_of_groups,6,6,TRUE,group_by + summarise vs groupby + agg
+grouping_labels,High Income (>3.5) / Female; High Income (>3.5) / Male; Low Income (<1.3) / Female; Low Income (<1.3) / Male; Middle Income / Female; Middle Income / Male,High Income (>3.5) / Female; High Income (>3.5) / Male; Low Income (<1.3) / Female; Low Income (<1.3) / Male; Middle Income / Female; Middle Income / Male,TRUE,Same labels in the same order (arrange vs sort_values)
+rounded_summary_values,"11743, 25.74, 7.51; 12095, 26.11, 6.81; 16548, 25.95, 8.65; 14847, 24.05, 7.17; 16432, 26.39, 8.20; 15982, 25.52, 7.22","11743, 25.74, 7.51; 12095, 26.11, 6.81; 16548, 25.95, 8.65; 14847, 24.05, 7.17; 16432, 26.39, 8.20; 15982, 25.52, 7.22",TRUE,"n, mean, SD per group in label order (2 dp); also checked numerically in group_check; SD uses n - 1 in both"

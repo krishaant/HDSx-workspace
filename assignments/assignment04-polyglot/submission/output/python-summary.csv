@@ -1,0 +1,7 @@
+IncomeGroup,Gender,n,mean_bmi,sd_bmi
+High Income (>3.5),Female,11743,25.74,7.51
+High Income (>3.5),Male,12095,26.11,6.81
+Low Income (<1.3),Female,16548,25.95,8.65
+Low Income (<1.3),Male,14847,24.05,7.17
+Middle Income,Female,16432,26.39,8.2
+Middle Income,Male,15982,25.52,7.22

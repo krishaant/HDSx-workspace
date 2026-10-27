@@ -1,0 +1,222 @@
+---
+title: "Assignment 5: Visualization Audit"
+author: "Krishaant Pathmanathan"
+format:
+  html:
+    embed-resources: true
+    toc: true
+---
+
+## How to reproduce this file
+
+Render from the repository root (`_quarto.yml` sets `execute-dir: project`, so
+every path below is relative to the project root, not this folder):
+
+```
+quarto render assignments/assignment05-visualization/submission/visualization-audit.qmd
+```
+
+Rendering re-reads `examples/nhanes-equity/data/nhanes_equity_v6.csv` and
+re-exports `corrected-plot.png` into this submission folder.
+
+## Setup
+
+```{r}
+#| message: false
+#| warning: false
+library(readr)
+library(dplyr)
+library(ggplot2)
+
+nhanes <- read_csv("examples/nhanes-equity/data/nhanes_equity_v6.csv",
+                    show_col_types = FALSE)
+dim(nhanes)
+```
+
+## Part 1: Audit of the flawed plot starter
+
+`flawed-plot-code.R` compares mean BMI by income group at the first and last
+NHANES cycle only. Reproducing its logic here (without the `ggsave`/file-path
+block, which is just a run helper) to see what it actually shows:
+
+```{r}
+cycle_levels <- sort(unique(nhanes$Cycle))
+endpoint_cycles <- c(cycle_levels[1], cycle_levels[length(cycle_levels)])
+
+flawed_summary <- nhanes |>
+  filter(!is.na(BMI), !is.na(IncomeGroup), Cycle %in% endpoint_cycles) |>
+  group_by(Cycle, IncomeGroup) |>
+  summarise(mean_bmi = mean(BMI), n = n(), .groups = "drop")
+
+flawed_summary
+```
+
+```{r}
+#| fig-cap: "Flawed plot as written by the starter script."
+flawed_plot <- ggplot(
+  flawed_summary,
+  aes(x = Cycle, y = mean_bmi, color = IncomeGroup, group = IncomeGroup)
+) +
+  geom_point(size = 3) +
+  geom_line(linetype = "dashed", linewidth = 1) +
+  scale_y_continuous(limits = c(24, 28)) +
+  labs(
+    title = "Low income drives rising obesity in American adults",
+    subtitle = "Adults age 20-80: BMI climbed steadily across every NHANES cycle",
+    x = "NHANES cycle",
+    y = "BMI",
+    color = "Income"
+  ) +
+  theme_minimal(base_size = 12)
+
+flawed_plot
+```
+
+**Issues found in the flawed starter** (see `visual-audit-note.md` for the
+full table):
+
+1. **Causal title.** "Low income drives rising obesity" claims causation from
+   a cross-sectional, unweighted, descriptive comparison.
+2. **Age claim does not match the code.** The subtitle says "Adults age
+   20-80," but the pipeline never filters on `Age`. The summary silently
+   includes every age in the file (`r min(nhanes$Age)`-`r max(nhanes$Age)`),
+   including infants and children, under a title about "American adults."
+3. **Truncated y-axis.** `scale_y_continuous(limits = c(24, 28))` starts well
+   above zero, which visually doubles the apparent gap between income groups.
+4. **Only 2 of 11 cycles shown, but captioned as "every... cycle."** Using
+   only the endpoint cycles and drawing a line between them manufactures a
+   "steady climb" that the two points alone cannot demonstrate.
+5. **Missingness dropped silently.** `filter(!is.na(IncomeGroup))` removes
+   `r sum(is.na(nhanes$IncomeGroup))` rows with no missingness count reported
+   anywhere in the plot or caption.
+
+## Part 2: My own initial draft
+
+My descriptive question: **how does mean BMI differ by household income
+group in the most recent NHANES cycle?** First pass, before the audit:
+
+```{r}
+draft_summary <- nhanes |>
+  filter(!is.na(BMI), !is.na(IncomeGroup), Cycle == "2021-2023") |>
+  group_by(IncomeGroup) |>
+  summarise(mean_bmi = mean(BMI), n = n(), .groups = "drop")
+
+draft_summary
+```
+
+```{r}
+#| fig-cap: "My initial draft, before the audit."
+draft_plot <- ggplot(draft_summary, aes(x = IncomeGroup, y = mean_bmi, fill = IncomeGroup)) +
+  geom_col(width = 0.6) +
+  coord_cartesian(ylim = c(25, 31)) +
+  labs(
+    title = "Low income Americans have higher BMI",
+    x = "Income group",
+    y = "Mean BMI"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+
+draft_plot
+```
+
+**Issues I found in my own draft:**
+
+6. **Zoomed bar-chart axis.** `coord_cartesian(ylim = c(25, 31))` makes a
+   ~2-point difference in mean BMI look like a tall/short bar comparison
+   instead of a small relative difference.
+7. **Population-level title.** "Low income Americans have higher BMI"
+   generalizes an unweighted classroom sample to the whole country; NHANES
+   sample weights (not used here) are what would let a claim like that
+   extend beyond the sample.
+8. **No age restriction and no sample size shown.** Like the flawed starter,
+   this draft includes every age in the file, and a reader cannot see how
+   many people are behind each bar or how many rows with missing income were
+   dropped.
+
+## Part 3: Revised, corrected plot
+
+The revision: restrict to adults aged 20-80 (so "BMI by income group" is not
+mixing in pediatric growth-related BMI), show **all 11 cycles** instead of
+two endpoints, start the BMI axis at 0, drop the causal/population framing,
+and report the sample sizes behind the lines.
+
+```{r}
+adults <- nhanes |> filter(Age >= 20, Age <= 80)
+
+corrected_summary <- adults |>
+  filter(!is.na(BMI), !is.na(IncomeGroup)) |>
+  group_by(Cycle, IncomeGroup) |>
+  summarise(mean_bmi = mean(BMI), n = n(), .groups = "drop")
+
+n_dropped <- nrow(adults) - nrow(adults |> filter(!is.na(BMI), !is.na(IncomeGroup)))
+n_total_adults <- nrow(adults |> filter(!is.na(BMI), !is.na(IncomeGroup)))
+
+tibble(adults_age_20_80 = nrow(adults),
+       dropped_missing_bmi_or_income = n_dropped,
+       analyzed = n_total_adults)
+```
+
+```{r}
+#| fig-cap: "Corrected plot: full axis, all cycles, descriptive framing, sample sizes stated."
+corrected_plot <- ggplot(
+  corrected_summary,
+  aes(x = Cycle, y = mean_bmi, color = IncomeGroup, group = IncomeGroup)
+) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2.2) +
+  scale_y_continuous(limits = c(0, 32), breaks = seq(0, 32, 8)) +
+  labs(
+    title = "Mean BMI by household income group, NHANES 1999-2023",
+    subtitle = paste0(
+      "Descriptive and unweighted; adults aged 20-80 (n = ", n_total_adults, ")"
+    ),
+    x = "NHANES cycle",
+    y = "Mean BMI (kg/m^2)",
+    color = "Income group",
+    caption = paste(
+      strwrap(
+        paste0(
+          "Source: classroom NHANES snapshot, examples/nhanes-equity/data/nhanes_equity_v6.csv (CDC/NCHS). ",
+          "Excludes ", n_dropped, " adult records missing BMI or income group, and all ages outside 20-80. ",
+          "Descriptive, unweighted sample statistics; not survey-weighted or population-representative, ",
+          "and not evidence that income causes BMI differences."
+        ),
+        width = 95
+      ),
+      collapse = "\n"
+    )
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.caption = element_text(hjust = 0, size = 8),
+    axis.text.x = element_text(angle = 40, hjust = 1)
+  )
+
+corrected_plot
+
+ggsave(
+  "assignments/assignment05-visualization/submission/corrected-plot.png",
+  corrected_plot, width = 9, height = 6.5, dpi = 150
+)
+```
+
+## Interpretation
+
+Across all 11 NHANES cycles in this classroom snapshot, adults (20-80) in the
+lowest household income group have a higher mean BMI than middle- and
+high-income adults in every cycle shown, and the gap between the low-income
+and high-income lines is wider in the most recent cycles than in 1999-2000.
+This is a **descriptive, unweighted** pattern in this sample only: NHANES
+sample weights were not applied, so these numbers describe the people
+measured in this classroom file, not the U.S. population, and a cross-
+sectional comparison like this cannot show that income differences cause the
+BMI differences.
+
+## Connection to Assignment 4
+
+The `IncomeGroup`, `BMI`, and `Age` columns and the unweighted/descriptive
+caveat used here are the same ones checked for parity in
+[Assignment 4](../../assignment04-polyglot/submission/polyglot-parity.qmd),
+which is why the missingness counts for `IncomeGroup` and `BMI` match what
+was reported there.
